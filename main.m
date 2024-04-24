@@ -1,7 +1,7 @@
 clc;clear;
 tic;%计时
 %Get data
-load("E:\科研\dataset\SRBCT.arff");
+load("E:\科研\dataset\SRBCT.mat");
 
 % % % %%Ellow 寻找最佳k值
 % % 初始化变量
