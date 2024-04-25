@@ -1,32 +1,19 @@
 clc;clear;
 tic;%计时
 %Get data
-load("E:\科研\dataset\SRBCT.mat");
+load("E:\科研\dataset\lung.mat");
+X=zscore(X);
+% 分割数据集为训练集和测试集
+cv = cvpartition(Y, 'HoldOut', 0.1);
+X_train = X(cv.training, :);
+Y_train = Y(cv.training);
+X_test = X(cv.test, :);
+Y_test = Y(cv.test);
 
-% % % %%Ellow 寻找最佳k值
-% % 初始化变量
-% max_k = 10; % 最大的k值
-% inertia = zeros(1, max_k);
-% 
-% % 计算不同k值对应的inertia
-% for k = 1:max_k
-%     fprintf("k=%d\n",k);
-%     [ ~, weights] = relieff(X, Y, k);
-%     inertia(k) = sum(weights); % 这里只是简单将weights求和作为聚类质量度量，实际上可以根据具体情况选择合适的度量方法
-% end
-% 
-% % 绘制肘部法图像
-% figure;
-% plot(1:max_k, inertia, 'bx-');
-% xlabel('k');
-% ylabel('Inertia');
-% title('Elbow Method for Optimal k');
 %%%%%%%%%%%%%%%%%%%%%%%%%Task Generation Strategy%%%%%%%%%%%%%%%%%%%%%%%%%%
-% calculate the relieff 
-[ranks, weights]=relieff(X,Y,5);    %relieff函数中ranks显示根据排名列出的预测变量编号，weights以与预测变量相同的顺序给出权重值
-% 如果权重为负，则将权重设置为0
-% weights = max(weights, 0);
-% find the knee point 
+% calculate the relieff
+[ranks, weights]=relieff(X_train, Y_train, 5);      %relieff函数中ranks显示根据排名列出的预测变量编号，weights以与预测变量相同的顺序给出权重值
+% find the knee point
 [sorted_weights, ~] = sort(weights, 'descend');
 % 计算连线的斜率和截距
 x = 1:length(weights);  % 横坐标只是标号
@@ -39,7 +26,7 @@ distances = abs(-slope * x + y - intercept) / sqrt(slope^2 + 1);
 [~, maxDistIdx] = max(distances);
 threshold_weight = y(maxDistIdx);
 % 使用原始权重（未排序）与阈值比较来划分Promising和Remaining Sets
-promising_idx = find(weights >= threshold_weight); 
+promising_idx = find(weights >= threshold_weight);
 remaining_idx = find(weights < threshold_weight);
 % 在选择特征之前，移除权重为负的特征索引
 promising_idx = promising_idx(weights(promising_idx) > 0);
@@ -66,7 +53,7 @@ p_remaining = 1 - p_promising;
 T = 5; % 生成T个相关任务
 num_features = length(weights); % 特征总数
 tasks = cell(1, T); % 初始化任务存储变量
-for t = 1:T
+for  t = 1:T
     % 对于每个任务，根据概率选择特征
     selected_promising = randsample(promising_idx, round(p_promising * num_features), true);
     selected_remaining = randsample(remaining_idx, round(p_remaining * num_features), true);
@@ -80,7 +67,7 @@ rmp = 0.6; % 随机配对概率
 G = 6; % 未变化代数阈值
 numIterations = 10; % 迭代次数
 cr = rand(); % 交叉率，用于知识迁移
-numFeatures = size(X, 2); % 特征数量
+numFeatures = size(X_train, 2); % 特征数量
 numParticles = min(floor(numFeatures / 3), 200); % 粒子数量
 c1 = 1.49445; % 认知参数
 c2 = 1.49445; % 社会参数
@@ -92,21 +79,20 @@ globalBests = cell(T, 1);
 % Initialize particles for each task
 for t = 1:T
     featureSubset = tasks{t}; % 任务t
-    numFeaturesInTask = length(featureSubset); 
+    numFeaturesInTask = length(featureSubset);
     % Initialize particles for task t
     for i = 1:numParticles
         % 初始化二进制
-        particlePosition = false(1, numFeatures); 
+        particlePosition = false(1, numFeatures);
         particlePosition(featureSubset) = rand(1, numFeaturesInTask) > 0.6;
 
         particles{t}(i).position = particlePosition;
-        particles{t}(i).velocity = zeros(1, numFeatures); 
+        particles{t}(i).velocity = zeros(1, numFeatures);
         particles{t}(i).fitness = Inf;
         particles{t}(i).pbest = particlePosition;
         particles{t}(i).pbestFitness = Inf;
     end
     % Initialize the global best for task t
-
     globalBests{t} = struct('position',particles{t}(1).position, 'fitness', Inf);  % Initialize each cell as a struct
 end
 %%%%%%
@@ -126,15 +112,15 @@ for iter = 1:numIterations
             r1 = rand();
             r2 = rand();
             particles{t}(i).velocity = w * particles{t}(i).velocity + ...
-                                       c1 * r1 .* (particles{t}(i).pbest - particles{t}(i).position) + ...
-                                       c2 * r2 .* (globalBests{t}.position - particles{t}(i).position);
-             % 预更新粒子位置
+                c1 * r1 .* (particles{t}(i).pbest - particles{t}(i).position) + ...
+                c2 * r2 .* (globalBests{t}.position - particles{t}(i).position);
+            % 预更新粒子位置
             newPosition = currentPosition + particles{t}(i).velocity;
 
-%             particles{t}(i).position = particles{t}(i).position + particles{t}(i).velocity;
-            
+            %             particles{t}(i).position = particles{t}(i).position + particles{t}(i).velocity;
+
             % 适用于特征选择的二值化处理，确保只选择当前任务相关的特征
-            selectedFeatures = false(1, numFeatures); % Initialize with false 
+            selectedFeatures = false(1, numFeatures); % Initialize with false
             selectedFeatures(featureSubset) = particles{t}(i).position(featureSubset) > 0.6;
             % 检查是否有特征被选中
             if sum(selectedFeatures) == 0
@@ -145,35 +131,35 @@ for iter = 1:numIterations
             % 有特征被选中，更新粒子位置
             particles{t}(i).position = newPosition;
             % 计算适应度
-%           selectedFeatures = particles{t}(i).position(featureSubset);
-            particles{t}(i).fitness = calculateFitness(selectedFeatures, X, Y, alpha);
+            %           selectedFeatures = particles{t}(i).position(featureSubset);
+            particles{t}(i).fitness = calculateFitness(selectedFeatures, X_train, Y_train, alpha);
 
             % 更新个体最佳
             if isempty(particles{t}(i).pbest) || particles{t}(i).fitness < particles{t}(i).pbestFitness
                 particles{t}(i).pbest = particles{t}(i).position;
                 particles{t}(i).pbestFitness = particles{t}(i).fitness;
             end
-            
+
             % 更新全局最优解
             if isempty(globalBests{t}) || particles{t}(i).fitness < globalBests{t}.fitness
                 globalBests{t}.position = particles{t}(i).position;
                 globalBests{t}.fitness = particles{t}(i).fitness;
                 cnt=0;
-            else 
+            else
                 cnt=cnt+1;
             end
         end
-       
+
         % 知识迁移部分
-         if rand() <= rmp
+        if rand() <= rmp
             %  tournament selection mechanism
             otherTasks = setdiff(1:T, t);
             selectedTaskIdx = otherTasks(randi(length(otherTasks)));
             gbest_m = globalBests{selectedTaskIdx}.position; % Position of the selected gbest
-            
-            
+
+
             cr = rand(1, numFeatures);
-            
+
             % 生成新gbest
             gbest_new = cr .* globalBests{t}.position + (1 - cr) .* gbest_m;
             % G代未改变更新gbest平均值
@@ -188,20 +174,20 @@ for iter = 1:numIterations
             end
             % 检查是否有特征被选中
             selectedFeatures = gbest_new > 0.6;
-           if sum(selectedFeatures) == 0
-            % 如果没有特征被选中，则不更新全局最优
-            fprintf('没有特征被选中，跳过更新全局最优解。\n');
-            continue;  
-            else 
-            % 
-            newFitness = calculateFitness(gbest_new > 0.6, X, Y, alpha); 
-            if newFitness < globalBests{t}.fitness
+            if sum(selectedFeatures) == 0
+                % 如果没有特征被选中，则不更新全局最优
+                fprintf('没有特征被选中，跳过更新全局最优解。\n');
+                continue;
+            else
+                %
+                newFitness = calculateFitness(gbest_new > 0.6, X_test, Y_test, alpha);
+                %             if newFitness < globalBests{t}.fitness
                 %更新gbest
-                globalBests{t}.position = gbest_new > 0.6; 
+                globalBests{t}.position = gbest_new > 0.6;
                 globalBests{t}.fitness = newFitness;
+                %             end
             end
-           end
-         end % 知识迁移部分end
+        end % 知识迁移部分end
     end
 end
 
@@ -221,7 +207,7 @@ for t = 1:T
     % 计算选取的特征个数
     numSelectedFeatures = sum(selectedFeatures);
     % 该特征子集的分类正确率
-    accuracy = evaluateFeatureSubset(selectedFeatures, X, Y, 5);
+    accuracy = evaluateFeatureSubset(selectedFeatures, X_test, Y_test, 1);
     fprintf('任务 %d 的特征子集中选取的特征个数: %d\n', t, numSelectedFeatures);
     fprintf('任务 %d 的特征子集分类正确率: %.2f%%\n', t, accuracy * 100);
     if accuracy > maxAccuracy
