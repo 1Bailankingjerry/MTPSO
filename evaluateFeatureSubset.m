@@ -1,26 +1,17 @@
-function accuracy = evaluateFeatureSubset(selectedFeatures, X, Y, k)
-    if nargin < 4
-        k = 5; 
-    end
+function accuracy = evaluateFeatureSubset(selectedFeatures, X_train, Y_train, X_test, Y_test, k)
     % 仅使用选定的特征
-    X_selected = X(:, selectedFeatures);
+    X_train_selected = X_train(:, selectedFeatures);
+    X_test_selected = X_test(:, selectedFeatures);
     
-    % 5折交叉验证
-    cv = cvpartition(Y, 'KFold', 5);
-    correctPredictions = 0;
-    totalPredictions = 0;
+    % 训练 KNN 分类器
+    model = fitcknn(X_train_selected, Y_train, 'NumNeighbors', k);
     
-    for fold = 1:cv.NumTestSets
-        trainIdx = cv.training(fold);
-        testIdx = cv.test(fold);
-        
-        model = fitcknn(X_selected(trainIdx, :), Y(trainIdx), 'NumNeighbors', k);
-        predictions = predict(model, X_selected(testIdx, :));
-        
-        % 计算正确的预测数
-        correctPredictions = correctPredictions + sum(predictions == Y(testIdx));
-        totalPredictions = totalPredictions + length(Y(testIdx));
-    end
+    % 在测试集上进行分类预测
+    predictions = predict(model, X_test_selected);
+    
+    % 计算正确的预测数
+    correctPredictions = sum(predictions == Y_test);
+    totalPredictions = length(Y_test);
     
     % 计算正确率
     accuracy = correctPredictions / totalPredictions;
