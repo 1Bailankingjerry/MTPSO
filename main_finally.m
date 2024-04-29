@@ -1,12 +1,13 @@
 clc;clear;
 tic;%计时
 %Get data
-load("E:\科研\dataset\PCMAC.mat");
-% % Max-Min归一化
+load("E:\科研\dataset\SRBCT.mat");
+% Max-Min归一化
 % X = (X - min(X)) ./ (max(X) - min(X));
-% X(:, max(X) == min(X)) = 0;
+% % normalization
+X= (X - repmat(min(X), size(X, 1), 1)) ./ repmat(max(X) - min(X), size(X, 1), 1);
 % 分割数据集为训练集和测试集
-cv = cvpartition(Y, 'HoldOut', 0.3);
+cv = cvpartition(Y, 'HoldOut', 0.1);
 X_train = X(cv.training, :);
 Y_train = Y(cv.training);
 X_test = X(cv.test, :);
@@ -14,7 +15,7 @@ Y_test = Y(cv.test);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%Task Generation Strategy%%%%%%%%%%%%%%%%%%%%%%%%%%
 % calculate the relieff
-[ranks, weights]=relieff(X_train, Y_train, 5);      %relieff函数中ranks显示根据排名列出的预测变量编号，weights以与预测变量相同的顺序给出权重值
+[ranks, weights]=relieff(X_train, Y_train, 10);      %relieff函数中ranks显示根据排名列出的预测变量编号，weights以与预测变量相同的顺序给出权重值
 % find the knee point
 [sorted_weights, ~] = sort(weights, 'descend');
 % 计算连线的斜率和截距
@@ -34,7 +35,7 @@ remaining_idx = find(weights < threshold_weight);
 promising_idx = promising_idx(weights(promising_idx) > 0);
 remaining_idx = remaining_idx(weights(remaining_idx) > 0);
 
-% 图像表示
+% % 图像表示
 % figure;
 % plot(x, y, 'b-o'); % 绘制排序后的权重
 % hold on;
